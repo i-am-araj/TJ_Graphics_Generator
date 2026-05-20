@@ -1,33 +1,3 @@
-"""
-Tractor Sales Infographic Generator — Streamlit UI
-===================================================
-Folder structure (put all files in the same folder as this script):
-
-  your_project/
-  ├── App.py                        ← this file
-  ├── assets/
-  │   ├── Background.jpg
-  │   ├── TJ_New_Logo.png
-  │   ├── mahindra-1673872647.png
-  │   ├── mahindra.png
-  │   ├── swaraj-1608095532.webp
-  │   ├── swaraj.png
-  │   ├── sonalika_New_Logo_HD.png
-  │   ├── escorts_kubota_logo.png
-  │   ├── esctorts_kubota.png
-  │   ├── John_Deere_logo_svg.png
-  │   ├── john_deere.png
-  │   ├── eicher-logo.png
-  │   ├── eicher.png
-  │   ├── new_holland_logo.png
-  │   ├── new_holland.png
-  │   ├── tafe.png
-  │   └── others.png
-  └── output/                       ← generated PNGs saved here (auto-created)
-
-Run:
-  streamlit run App.py
-"""
 
 import streamlit as st
 from PIL import Image, ImageDraw, ImageFont
@@ -37,11 +7,17 @@ import os, sys, math, io, json, copy, platform
 # ══════════════════════════════════════════════════════════════════
 #  PATHS  ★ Edit BASE to match your project folder ★
 # ══════════════════════════════════════════════════════════════════
-BASE_DIR    = r"D:\Python\Projects\Graphic Generator"
-ASSETS_DIR  = os.path.join(BASE_DIR, "assets")
-LOGOS_DIR   = os.path.join(BASE_DIR, "assets", "logos")
-TRACTORS_DIR= os.path.join(BASE_DIR, "assets", "tractors")
-OUTPUT_DIR  = os.path.join(BASE_DIR, "output")
+import os
+from pathlib import Path
+
+# Dynamic project root
+BASE_DIR = Path(__file__).resolve().parent
+
+# Keep Graphic Generator/assets fixed
+ASSETS_DIR   = os.path.join(BASE_DIR, "assets")
+LOGOS_DIR    = os.path.join(ASSETS_DIR, "logos")
+TRACTORS_DIR = os.path.join(ASSETS_DIR, "tractors")
+OUTPUT_DIR   = os.path.join(BASE_DIR, "output")
 
 for _d in (ASSETS_DIR, LOGOS_DIR, TRACTORS_DIR, OUTPUT_DIR):
     os.makedirs(_d, exist_ok=True)
