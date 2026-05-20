@@ -35,57 +35,60 @@ import numpy as np
 import os, sys, math, io, json, copy, platform
 
 # ══════════════════════════════════════════════════════════════════
-#  PATHS — relative to this script, works on Windows & Linux & Mac
+#  PATHS  ★ Edit BASE to match your project folder ★
 # ══════════════════════════════════════════════════════════════════
-BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
-ASSETS_DIR = os.path.join(BASE_DIR, "assets")
-OUTPUT_DIR = os.path.join(BASE_DIR, "output")
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+BASE_DIR    = r"D:\Python\Projects\Graphic Generator"
+ASSETS_DIR  = os.path.join(BASE_DIR, "assets")
+LOGOS_DIR   = os.path.join(BASE_DIR, "assets", "logos")
+TRACTORS_DIR= os.path.join(BASE_DIR, "assets", "tractors")
+OUTPUT_DIR  = os.path.join(BASE_DIR, "output")
+
+for _d in (ASSETS_DIR, LOGOS_DIR, TRACTORS_DIR, OUTPUT_DIR):
+    os.makedirs(_d, exist_ok=True)
 
 def asset(filename):
+    """Root assets folder — for Background.jpg, TJ_New_Logo.png etc."""
     return os.path.join(ASSETS_DIR, filename)
 
-# ── Font detection — Windows / macOS / Linux ──────────────────────
+def logo(filename):
+    """assets/logos/ folder."""
+    return os.path.join(LOGOS_DIR, filename)
+
+def tractor(filename):
+    """assets/tractors/ folder."""
+    return os.path.join(TRACTORS_DIR, filename)
+
+# ── Font paths  ★ Edit if you want a different font ★ ────────────
+#  Place Barlow .ttf files in assets/fonts/ to override these.
+#  Falls back to Arial on Windows, Liberation on Linux.
 def find_font(bold=True):
-    system = platform.system()
     win = os.environ.get("WINDIR", r"C:\Windows")
-    candidates = {
-        "Windows": {
-            True:  [os.path.join(win,"Fonts","arialbd.ttf"),
-                    os.path.join(win,"Fonts","calibrib.ttf"),
-                    os.path.join(win,"Fonts","trebucbd.ttf")],
-            False: [os.path.join(win,"Fonts","arial.ttf"),
-                    os.path.join(win,"Fonts","calibri.ttf"),
-                    os.path.join(win,"Fonts","trebuc.ttf")],
-        },
-        "Darwin": {
-            True:  ["/System/Library/Fonts/Helvetica.ttc",
-                    "/Library/Fonts/Arial Bold.ttf"],
-            False: ["/System/Library/Fonts/Helvetica.ttc",
-                    "/Library/Fonts/Arial.ttf"],
-        },
-        "Linux": {
-            True:  ["/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-                    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"],
-            False: ["/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-                    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"],
-        },
-    }
-    # Check assets/fonts/ for bundled Barlow (highest priority)
-    bundled = os.path.join(ASSETS_DIR, "fonts")
-    extras = []
+    # 1. Check assets/fonts/ first (works on all platforms incl. Cloud)
+    bundled = os.path.join(BASE_DIR, "assets", "fonts")
     if os.path.isdir(bundled):
         for f in sorted(os.listdir(bundled)):
             if not f.lower().endswith(".ttf"):
                 continue
             fl = f.lower()
             if bold and any(w in fl for w in ("bold","black","heavy")):
-                extras.insert(0, os.path.join(bundled, f))
-            elif not bold and any(w in fl for w in ("regular","light","medium")):
-                extras.insert(0, os.path.join(bundled, f))
-
-    pool = extras + candidates.get(system, candidates["Linux"])[bold]
-    for p in pool:
+                return os.path.join(bundled, f)
+            if not bold and any(w in fl for w in ("regular","light","medium")):
+                return os.path.join(bundled, f)
+    # 2. System fonts fallback
+    system_fonts = (
+        [os.path.join(win,"Fonts","arialbd.ttf"),
+         os.path.join(win,"Fonts","calibrib.ttf")]
+        if bold else
+        [os.path.join(win,"Fonts","arial.ttf"),
+         os.path.join(win,"Fonts","calibri.ttf")]
+    ) + (
+        ["/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"]
+        if bold else
+        ["/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"]
+    )
+    for p in system_fonts:
         if os.path.exists(p):
             return p
     return None
@@ -94,34 +97,57 @@ FONT_BOLD_PATH    = find_font(bold=True)
 FONT_REGULAR_PATH = find_font(bold=False)
 
 # ══════════════════════════════════════════════════════════════════
-#  BRAND ASSET MAP
+#  BRAND LIST
+#  Logo  file : assets/logos/<BrandName>.png
+#  Tractor file: assets/tractors/<BrandName>.png
+#  (no mapping needed — filename = brand name)
 # ══════════════════════════════════════════════════════════════════
-BRAND_ASSETS = {
-    "Mahindra":    ("mahindra-1673872647.png",  "mahindra.png"),
-    "Swaraj":      ("swaraj-1608095532.webp",   "swaraj.png"),
-    "Sonalika":    ("sonalika_New_Logo_HD.png",  "others.png"),
-    "Kubota":      ("escorts_kubota_logo.png",   "esctorts_kubota.png"),
-    "TAFE":        (None,                         "tafe.png"),
-    "John Deere":  ("John_Deere_logo_svg.png",   "john_deere.png"),
-    "Eicher":      ("eicher-logo.png",            "eicher.png"),
-    "New Holland": ("new_holland_logo.png",       "new_holland.png"),
-    "Others":      (None,                         "others.png"),
-}
-ALL_BRANDS = list(BRAND_ASSETS.keys())
+ALL_BRANDS = [
+    "Mahindra", "Swaraj", "Sonalika", "Kubota", "TAFE",
+    "John Deere", "Eicher", "New Holland", "Others",
+]
+
+def brand_logo_path(brand):
+    """
+    Look for assets/logos/<brand>.<ext>
+    Tries .png, .jpg, .jpeg, .webp in order.
+    File name must exactly match the brand name (case-insensitive).
+    """
+    if not os.path.isdir(LOGOS_DIR):
+        return None
+    for ext in (".png", ".jpg", ".jpeg", ".webp"):
+        for f in os.listdir(LOGOS_DIR):
+            if f.lower() == (brand + ext).lower():
+                return os.path.join(LOGOS_DIR, f)
+    return None
+
+def brand_tractor_path(brand):
+    """
+    Look for assets/tractors/<brand>.<ext>
+    Tries .png, .jpg, .jpeg, .webp in order.
+    File name must exactly match the brand name (case-insensitive).
+    """
+    if not os.path.isdir(TRACTORS_DIR):
+        return None
+    for ext in (".png", ".jpg", ".jpeg", ".webp"):
+        for f in os.listdir(TRACTORS_DIR):
+            if f.lower() == (brand + ext).lower():
+                return os.path.join(TRACTORS_DIR, f)
+    return None
 
 # ══════════════════════════════════════════════════════════════════
 #  DEFAULT ROAD POSITIONS  (x, y on 1080×1350 canvas)
 # ══════════════════════════════════════════════════════════════════
 DEFAULT_POSITIONS = [
-    {"x": 310, "y": 1240, "side": "left"},   # rank 1
-    {"x": 480, "y": 1110, "side": "right"},  # rank 2
-    {"x": 390, "y":  970, "side": "left"},   # rank 3
-    {"x": 310, "y":  840, "side": "left"},   # rank 4
-    {"x": 490, "y":  715, "side": "right"},  # rank 5
-    {"x": 540, "y":  598, "side": "right"},  # rank 6
-    {"x": 455, "y":  488, "side": "left"},   # rank 7
-    {"x": 600, "y":  382, "side": "right"},  # rank 8
-    {"x": 718, "y":  285, "side": "right"},  # rank 9
+    {"x": 200, "y": 1240, "side": "left"},   # rank 1
+    {"x": 500, "y": 1120, "side": "right"},  # rank 2
+    {"x": 485, "y":  920, "side": "left"},   # rank 3
+    {"x": 400, "y":  770, "side": "left"},   # rank 4
+    {"x": 585, "y":  700, "side": "right"},  # rank 5
+    {"x": 515, "y":  540, "side": "right"},  # rank 6
+    {"x": 650, "y":  470, "side": "left"},   # rank 7
+    {"x": 800, "y":  420, "side": "left"},  # rank 8
+    {"x": 980, "y":  390, "side": "left"},  # rank 9
 ]
 
 # ══════════════════════════════════════════════════════════════════
@@ -165,18 +191,20 @@ def remove_black_bg(path, threshold=35):
     return Image.fromarray(arr.clip(0,255).astype(np.uint8), "RGBA")
 
 
-@st.cache_data
-def load_asset(filename, max_w=500):
-    if not filename:
-        return None
-    path = asset(filename)
-    if not os.path.exists(path):
+def _load_img(path, max_w=500):
+    """Internal: load image from full path, remove black bg, resize."""
+    if not path or not os.path.exists(path):
         return None
     img = remove_black_bg(path)
     if img.width > max_w:
         r = max_w / img.width
         img = img.resize((max_w, int(img.height * r)), Image.LANCZOS)
     return img
+
+@st.cache_data
+def load_root(filename, max_w=500):
+    """Load from assets/ root (Background.jpg, TJ logo etc.)"""
+    return _load_img(asset(filename) if filename else None, max_w)
 
 
 def fit_image(img, w, h):
@@ -263,13 +291,12 @@ def generate_infographic(data, report_month, compare_month, total_yoy, positions
     assets_cache = {}
     for brand, units, yoy in ranked:
         if brand not in assets_cache:
-            logo_f, tractor_f = BRAND_ASSETS.get(brand, (None, None))
             assets_cache[brand] = {
-                "logo":    load_asset(logo_f),
-                "tractor": load_asset(tractor_f),
+                "logo":    _load_img(brand_logo_path(brand)),
+                "tractor": _load_img(brand_tractor_path(brand)),
             }
 
-    tj_logo = load_asset("TJ_New_Logo.png", max_w=300)
+    tj_logo = load_root("TJ_New_Logo.png", max_w=300)
 
     # ── Header ────────────────────────────────────────────────────
     f_title = get_font(69, bold=True)
@@ -443,21 +470,44 @@ h1 { color: #E8212A; }
 
 # ── Sidebar info ──────────────────────────────────────────────────
 st.sidebar.markdown("### ℹ️ Info")
-st.sidebar.markdown(f"**Assets:** `{ASSETS_DIR}`")
-st.sidebar.markdown(f"**Output:** `{OUTPUT_DIR}`")
+st.sidebar.markdown(f"**Base:** `{BASE_DIR}`")
 st.sidebar.markdown(f"**Platform:** `{platform.system()}`")
 if FONT_BOLD_PATH:
     st.sidebar.success(f"Font: `{os.path.basename(FONT_BOLD_PATH)}`")
 else:
-    st.sidebar.warning("No TTF font found.\nAdd Barlow .ttf files to `assets/fonts/` for best results.")
+    st.sidebar.warning("No TTF font found. Add Barlow .ttf files to `assets/fonts/`")
 
-# ── Asset check ───────────────────────────────────────────────────
-if not os.path.exists(ASSETS_DIR):
-    st.error(f"❌ **assets/** folder not found.\n\nCreate a folder named `assets` next to `App.py` and place all images inside it.")
+# ── Asset file check — shows exactly what is found per brand ──────
+st.sidebar.markdown("### 🔍 Asset Check")
+for brand in ALL_BRANDS:
+    lp = brand_logo_path(brand)
+    tp = brand_tractor_path(brand)
+    l_icon = "🟢" if lp else "🔴"
+    t_icon = "🟢" if tp else "🔴"
+    l_name = os.path.basename(lp) if lp else "NOT FOUND"
+    t_name = os.path.basename(tp) if tp else "NOT FOUND"
+    st.sidebar.markdown(
+        "**" + brand + "**  \n" +
+        l_icon + " Logo: `" + l_name + "`  \n" +
+        t_icon + " Tractor: `" + t_name + "`"
+    )
+
+# ── Asset folder checks ───────────────────────────────────────────
+missing = []
+for label, path in [
+    ("assets/",          ASSETS_DIR),
+    ("assets/logos/",    LOGOS_DIR),
+    ("assets/tractors/", TRACTORS_DIR),
+]:
+    if not os.path.isdir(path):
+        missing.append(f"- `{label}` → `{path}`")
+
+if missing:
+    st.error("❌ **Missing folders. Create these next to App.py:**\n\n" + "\n".join(missing))
     st.stop()
 
 if not os.path.exists(asset("Background.jpg")):
-    st.error(f"❌ `Background.jpg` not found in `{ASSETS_DIR}`.")
+    st.error(f"❌ `Background.jpg` not found in `{ASSETS_DIR}`")
     st.stop()
 
 st.title("🚜 Tractor Sales Infographic Generator")

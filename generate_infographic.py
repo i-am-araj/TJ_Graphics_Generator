@@ -74,16 +74,16 @@ C_TRANSPARENT= (  0,   0,   0,   0)
 #  x, y  = road centerline point (tractor base sits here)
 #  side  = 'left' or 'right' (which side labels go)
 # ═══════════════════════════════════════════════════════════════
-ROAD_POSITIONS = [
-    {"x": 140, "y": 1280, "side": "left"},    # rank 1 — largest
-    {"x": 400, "y": 1200, "side": "right"},   # rank 2
-    {"x": 480, "y":  930, "side": "left"},    # rank 3
-    {"x": 400, "y":  770, "side": "left"},    # rank 4
-    {"x": 490, "y":  715, "side": "right"},   # rank 5
-    {"x": 540, "y":  598, "side": "right"},   # rank 6
-    {"x": 455, "y":  488, "side": "left"},    # rank 7
-    {"x": 600, "y":  382, "side": "right"},   # rank 8
-    {"x": 718, "y":  285, "side": "right"},   # rank 9 — smallest
+ROAD_POSITIONS  = [
+    {"x": 200, "y": 1280, "side": "left"},   # rank 1
+    {"x": 500, "y": 1120, "side": "right"},  # rank 2
+    {"x": 485, "y":  920, "side": "left"},   # rank 3
+    {"x": 400, "y":  770, "side": "left"},   # rank 4
+    {"x": 585, "y":  700, "side": "right"},  # rank 5
+    {"x": 515, "y":  540, "side": "right"},  # rank 6
+    {"x": 650, "y":  470, "side": "left"},   # rank 7
+    {"x": 800, "y":  420, "side": "left"},  # rank 8
+    {"x": 980, "y":  390, "side": "left"},  # rank 9
 ]
 
 # Tractor sizes per rank (px), logo heights, font sizes
