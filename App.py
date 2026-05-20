@@ -14,7 +14,7 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent
 
 # Keep Graphic Generator/assets fixed
-ASSETS_DIR   = os.path.join(BASE_DIR, "assets")
+ASSETS_DIR   = os.path.join(BASE_DIR, "Assets")
 LOGOS_DIR    = os.path.join(ASSETS_DIR, "logos")
 TRACTORS_DIR = os.path.join(ASSETS_DIR, "tractors")
 OUTPUT_DIR   = os.path.join(BASE_DIR, "output")
