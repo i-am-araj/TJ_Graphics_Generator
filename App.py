@@ -834,7 +834,6 @@ for brand in ALL_BRANDS:
 missing=[f"`{l}`" for l,p in [("assets/",ASSETS_DIR),("assets/logos/",LOGOS_DIR),
                                 ("assets/tractors/",TRACTORS_DIR)] if not os.path.isdir(p)]
 if missing: st.error("❌ Missing: "+", ".join(missing)); st.stop()
-st.write(os.listdir(ASSETS_DIR))
 if not os.path.exists(asset("Background.jpg")): st.error("❌ Background.jpg not found"); st.stop()
 
 st.title("🚜 Tractor Sales Infographic Generator")
