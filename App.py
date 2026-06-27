@@ -999,3 +999,4 @@ window.addEventListener("message",function(ev){
                         st.error(f"❌ {e}")
 else:
     st.info("👆 Click **Generate Infographic** to create the preview.")
+    #Changed
