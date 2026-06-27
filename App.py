@@ -31,7 +31,18 @@ POSITIONS_JSON = os.path.join(BASE_DIR, "positions.json")
 for _d in (ASSETS_DIR, LOGOS_DIR, TRACTORS_DIR, OUTPUT_DIR):
     os.makedirs(_d, exist_ok=True)
 
-def asset(fn): return os.path.join(ASSETS_DIR, fn)
+def asset(fn):
+    """Case-insensitive lookup inside ASSETS_DIR (Windows is case-insensitive,
+    but Linux/Streamlit Cloud is not, so an exact-name file uploaded with
+    different casing would otherwise fail to be found)."""
+    p = os.path.join(ASSETS_DIR, fn)
+    if os.path.exists(p):
+        return p
+    if os.path.isdir(ASSETS_DIR):
+        for f in os.listdir(ASSETS_DIR):
+            if f.lower() == fn.lower():
+                return os.path.join(ASSETS_DIR, f)
+    return p
 
 # ══════════════════════════════════════════════════════════════════
 #  FONTS
