@@ -1,7 +1,8 @@
 """
 Tractor Sales Infographic Generator — Streamlit UI
 =====================================================
-Layout:
+Layout (all paths resolved relative to this file's location,
+so this works unchanged on Windows, Linux, and Streamlit Cloud):
   App.py
   assets/Background.jpg, TJ_New_Logo.png, fonts/
   assets/logos/   ← <Brand>.png
@@ -20,7 +21,7 @@ import os, math, io, json, copy, base64, platform
 # ══════════════════════════════════════════════════════════════════
 #  PATHS
 # ══════════════════════════════════════════════════════════════════
-BASE_DIR       = r"D:\Python\Projects\Graphic Generator"
+BASE_DIR       = os.path.dirname(os.path.abspath(__file__))
 ASSETS_DIR     = os.path.join(BASE_DIR, "assets")
 LOGOS_DIR      = os.path.join(BASE_DIR, "assets", "logos")
 TRACTORS_DIR   = os.path.join(BASE_DIR, "assets", "tractors")
