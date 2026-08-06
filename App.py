@@ -1,8 +1,7 @@
 """
 Tractor Sales Infographic Generator — Streamlit UI
 =====================================================
-Layout (all paths resolved relative to this file's location,
-so this works unchanged on Windows, Linux, and Streamlit Cloud):
+Layout:
   App.py
   assets/Background.jpg, TJ_New_Logo.png, fonts/
   assets/logos/   ← <Brand>.png
@@ -21,7 +20,7 @@ import os, math, io, json, copy, base64, platform
 # ══════════════════════════════════════════════════════════════════
 #  PATHS
 # ══════════════════════════════════════════════════════════════════
-BASE_DIR       = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR       = r"D:\Python\Projects\Graphic Generator"
 ASSETS_DIR     = os.path.join(BASE_DIR, "assets")
 LOGOS_DIR      = os.path.join(BASE_DIR, "assets", "logos")
 TRACTORS_DIR   = os.path.join(BASE_DIR, "assets", "tractors")
@@ -31,18 +30,7 @@ POSITIONS_JSON = os.path.join(BASE_DIR, "positions.json")
 for _d in (ASSETS_DIR, LOGOS_DIR, TRACTORS_DIR, OUTPUT_DIR):
     os.makedirs(_d, exist_ok=True)
 
-def asset(fn):
-    """Case-insensitive lookup inside ASSETS_DIR (Windows is case-insensitive,
-    but Linux/Streamlit Cloud is not, so an exact-name file uploaded with
-    different casing would otherwise fail to be found)."""
-    p = os.path.join(ASSETS_DIR, fn)
-    if os.path.exists(p):
-        return p
-    if os.path.isdir(ASSETS_DIR):
-        for f in os.listdir(ASSETS_DIR):
-            if f.lower() == fn.lower():
-                return os.path.join(ASSETS_DIR, f)
-    return p
+def asset(fn): return os.path.join(ASSETS_DIR, fn)
 
 # ══════════════════════════════════════════════════════════════════
 #  FONTS
@@ -134,7 +122,7 @@ def brand_tractor_path(brand):
 #  DEFAULT POSITIONS
 # ══════════════════════════════════════════════════════════════════
 TRACTOR_MAX_W = [220,195,175,158,143,130,118,107,96]
-LOGO_H        = [ 70, 64, 58, 52, 48, 44, 40, 37,34]
+LOGO_H        = [ 90, 55, 62, 57, 48, 44, 40, 37,34]
 FONT_UNITS    = [ 36, 33, 30, 28, 26, 24, 23, 22,21]
 FONT_YOY      = [ 22, 20, 19, 18, 17, 16, 16, 15,15]
 ARROW_LEN     = [100, 88, 78, 70, 64, 58, 53, 48,44]
@@ -145,10 +133,10 @@ DEFAULT_POSITIONS = [
     {"x":525,"y":1150,"side":"right", "angle":0,"flip":False},
     {"x":470,"y": 970,"side":"right", "angle":0,"flip":True },
     {"x":420,"y": 800,"side":"left",  "angle":0,"flip":False},
-    {"x":630,"y": 700,"side":"right", "angle":-3,"flip":False},
+    {"x":630,"y": 700,"side":"bottom-right", "angle":-3,"flip":False},
     {"x":535,"y": 575,"side":"left",  "angle":0,"flip":True },
     {"x":650,"y": 470,"side":"top",   "angle":0,"flip":False},
-    {"x":800,"y": 450,"side":"bottom",   "angle":0,"flip":False},
+    {"x":800,"y": 450,"side":"bottom-right",   "angle":0,"flip":False},
     {"x":980,"y": 390,"side":"top",   "angle":0,"flip":False},
 ]
 
@@ -162,9 +150,23 @@ def load_positions():
                     p.setdefault("angle",0)
                     p.setdefault("flip",False)
                     p.setdefault("max_w_override", TRACTOR_MAX_W[i])
+                    # Free-placement / resize fields saved by the Edit Mode
+                    # overlay. None = "not customized yet" → renderer falls
+                    # back to the legacy side-based layout for that rank.
+                    p.setdefault("logo_ox", None)
+                    p.setdefault("logo_oy", None)
+                    p.setdefault("label_ox", None)
+                    p.setdefault("label_oy", None)
+                    p.setdefault("logo_h_override", None)
+                    p.setdefault("label_scale", 1.0)
                 return data
         except Exception: pass
-    return copy.deepcopy(DEFAULT_POSITIONS)
+    defaults = copy.deepcopy(DEFAULT_POSITIONS)
+    for p in defaults:
+        p.setdefault("logo_ox", None); p.setdefault("logo_oy", None)
+        p.setdefault("label_ox", None); p.setdefault("label_oy", None)
+        p.setdefault("logo_h_override", None); p.setdefault("label_scale", 1.0)
+    return defaults
 
 def save_positions(positions):
     with open(POSITIONS_JSON,"w") as f:
@@ -233,6 +235,37 @@ def img_to_b64(img, f="PNG"):
     buf = io.BytesIO(); img.save(buf,format=f)
     return base64.b64encode(buf.getvalue()).decode()
 
+def draw_trend_triangle(draw, x, y, size, up, color=(34,165,71,255), height_ratio=0.8):
+    """
+    Draw a solid filled triangle (▲ or ▼) at (x, y) = top-left of its
+    bounding box, instead of relying on the Unicode ▲/▼ glyphs — most
+    fonts (including Barlow) don't ship those glyphs, so draw.text()
+    silently renders nothing (or a tofu box) for them.
+
+    Returns the pixel width consumed (== size), so callers can advance
+    the x-cursor exactly like they would after drawing a character.
+    """
+    w = size
+    h = size * height_ratio
+    if up:
+        pts = [(x + w/2, y), (x, y + h), (x + w, y + h)]
+    else:
+        pts = [(x, y), (x + w, y), (x + w/2, y + h)]
+    draw.polygon(pts, fill=color)
+    return size
+
+def side_vec(side):
+    """
+    Turn a 'side' string into a (dx, dy) direction vector:
+      dx: -1 left, +1 right, 0 neither
+      dy: -1 up (top), +1 down (bottom), 0 neither
+    Supports the 4 straight sides ('left','right','top','bottom') and the
+    4 diagonal corners ('top-left','top-right','bottom-left','bottom-right').
+    """
+    dx = 1 if "right" in side else (-1 if "left" in side else 0)
+    dy = -1 if "top" in side else (1 if "bottom" in side else 0)
+    return dx, dy
+
 def draw_dotted_arrow(draw,x1,y1,x2,y2,color,width=3,head=12,dash=14,gap=8,
                        dot_color=C_RED,dot_r=None):
     dx,dy=x2-x1,y2-y1; length=math.hypot(dx,dy)
@@ -273,18 +306,18 @@ def generate_infographic(data, report_month, compare_month, total_yoy, positions
     #   Title          : Black,    69
     #   Subtitle bar   : Bold,     31
     #   "Total:" label : Bold,     46
-    #   Total number   : Bold,     33
+    #   Total number   : Bold,     46  (matches label size — see reference design)
     f_ti = get_font(69*S, weight="black")
     f_su = get_font(31*S, weight="bold")
     f_tl = get_font(46*S, weight="bold")     # "Total:" label
-    f_tn = get_font(33*S, weight="bold")     # Total number + YoY %
+    f_tn = get_font(46*S, weight="bold")     # Total number + YoY %
     tx,ty=44*S,32*S
-    draw.text((tx,ty),      "Tractor Sales",font=f_ti,fill=C_TITLE)
-    draw.text((tx,ty+73*S), "in India",     font=f_ti,fill=C_TITLE)
-    sub=f"Retail Sales {report_month} as compare to {compare_month}"
+    draw.text((tx,ty), "Tractor Sales in India", font=f_ti, fill=C_TITLE)
+    ti_bbox=draw.textbbox((0,0),"Tractor Sales in India",font=f_ti)
+    sub=f"Retail Sales {report_month} as compared to {compare_month}"
     sub_bbox=draw.textbbox((0,0),sub,font=f_su)
     sw=sub_bbox[2]-sub_bbox[0]; sh=sub_bbox[3]-sub_bbox[1]
-    by=ty+73*S+73*S+4*S
+    by=ty+ti_bbox[3]+16*S
     strip_pad_h=18*S   # horizontal padding (left+right) around the text inside the strip
     strip_pad_v=14*S   # vertical padding (top+bottom) around the text inside the strip
     strip_x1,strip_y1=tx-4*S,by
@@ -300,20 +333,33 @@ def generate_infographic(data, report_month, compare_month, total_yoy, positions
     text_x=strip_x1+(strip_w-sw)//2-sub_bbox[0]
     draw.text((text_x,text_y),sub,font=f_su,fill=C_WHITE)
     total_u=sum(u for _,u,__ in ranked)
-    roy=by+sh+18*S
+    roy=strip_y1+strip_h+0*S
     draw.text((tx,roy),"Total:",font=f_tl,fill=C_DARK)
     lw2,_=tsz(draw,"Total: ",f_tl)
     nt=f" {fmt(total_u)}"
-    # Total number aligned to baseline of the larger "Total:" label
-    num_y_offset = (46-33)*S  # nudge down so baselines roughly align
-    draw.text((tx+lw2,roy+num_y_offset),nt,font=f_tn,fill=C_DARK)
+    # Label and number now share the same font size, so they sit on the
+    # same baseline with no extra offset needed.
+    draw.text((tx+lw2,roy),nt,font=f_tn,fill=C_DARK)
     nw,_=tsz(draw,nt,f_tn)
     yc=C_UP if total_yoy>=0 else C_DOWN
-    draw.text((tx+lw2+nw,roy+num_y_offset),
-              f" {'▲' if total_yoy>=0 else '▼'}{abs(total_yoy):.2f}% (YoY)",
+    # Triangle glyph (drawn as a polygon — Unicode ▲/▼ often don't render)
+    # followed by the "12.34% (YoY)" text. Vertically center the triangle
+    # against the *actual* rendered bbox of the text (not the font size),
+    # since ascent/descent vary per font and per-size offsets drift.
+    tri_size_total = f_tn.size
+    tri_x_total = tx+lw2+nw+4*S
+    yoy_total_txt = f" {abs(total_yoy):.2f}% (YoY)"
+    txt_bbox_total = draw.textbbox((tri_x_total+tri_size_total+3*S,roy),
+                                    yoy_total_txt, font=f_tn)
+    txt_top_total, txt_h_total = txt_bbox_total[1], txt_bbox_total[3]-txt_bbox_total[1]
+    tri_h_total = tri_size_total*0.8
+    tri_y_total = txt_top_total + (txt_h_total-tri_h_total)/2
+    draw_trend_triangle(draw, tri_x_total, tri_y_total, tri_size_total, total_yoy>=0, color=yc)
+    draw.text((tri_x_total+tri_size_total+3*S,roy),
+              yoy_total_txt,
               font=f_tn,fill=yc)
     if tj:
-        tl_h=140*S; r2=tl_h/tj.height
+        tl_h=175*S; r2=tl_h/tj.height
         tl=tj.resize((int(tj.width*r2),tl_h),Image.LANCZOS)
         canvas.paste(tl,(W-tl.width-26*S,24*S),tl)
 
@@ -323,11 +369,15 @@ def generate_infographic(data, report_month, compare_month, total_yoy, positions
         rx=pos["x"]*S; ry=pos["y"]*S
         side=pos["side"]; angle=pos.get("angle",0); flip=pos.get("flip",False)
         tmax=(pos.get("max_w_override",TRACTOR_MAX_W[rank]))*S
-        lh=LOGO_H[rank]*S
-        fu=get_font(19*S, weight="bold"); fy=get_font(19*S, weight="bold")
+        label_scale=pos.get("label_scale") or 1.0
+        lh=(pos.get("logo_h_override") or LOGO_H[rank])*S
+        fu=get_font(max(6,int(33*S*label_scale)), weight="bold")
+        fy=get_font(max(6,int(19*S*label_scale)), weight="bold")
         al=ARROW_LEN[rank]*S; lbw=LABEL_W[rank]*S
         up=yoy>=0; yc2=C_UP if up else C_DOWN
-        yoy_txt=f"{'▲' if up else '▼'}{abs(yoy):.2f}%"; unit_txt=fmt(units)
+        tri_size=fy.size
+        yoy_num_txt=f"{abs(yoy):.2f}%"; unit_txt=fmt(units)
+        open_txt,close_txt="(",")"
 
         timg=acache[brand]["tractor"]
         tr=prepare_tractor(timg,tmax,angle,flip) if timg else None
@@ -341,56 +391,96 @@ def generate_infographic(data, report_month, compare_month, total_yoy, positions
             lr=lh/logo_raw.height
             logo_r=logo_raw.resize((min(int(logo_raw.width*lr),lbw),lh),Image.LANCZOS)
 
-        uw,uh=tsz(draw,unit_txt,fu); yw,yh=tsz(draw,yoy_txt,fy)
-        block_h=(lh if logo_r else 20*S)+uh+4*S+yh+2*S
+        uw,uh=tsz(draw,unit_txt,fu)
+        yw_num,yh=tsz(draw,yoy_num_txt,fy)
+        ow,_=tsz(draw,open_txt,fy)
+        cwp,_=tsz(draw,close_txt,fy)
+        yw=ow+2*S+tri_size+3*S+yw_num+2*S+cwp   # "(" + gap + triangle + gap + %text + gap + ")"
+        block_h=(lh if logo_r else 20*S)+uh+7*S+yh+2*S
         block_w=max(logo_r.width if logo_r else 0,uw,yw)
 
-        if side=="top":
-            ax1,ay1=rx,ry-th-4*S; ay2=ay1-al
-            draw_dotted_arrow(draw,ax1,ay1,ax1,ay2,C_ARROW,lw_a,hd,da,ga)
-            bx=max(4*S,min(ax1-block_w//2,W-block_w-4*S))
-            cy=max(4*S,ay2-block_h-4*S-dot_gap)
-            if logo_r:
-                canvas.paste(logo_r,(bx+(block_w-logo_r.width)//2,cy),logo_r); cy+=lh+2*S
-            else:
-                fb=get_font(16*S); bw2,bh2=tsz(draw,brand,fb)
-                draw.text((bx+(block_w-bw2)//2,cy),brand,font=fb,fill=C_DARK); cy+=bh2+4*S
-            draw.text((bx+(block_w-uw)//2,cy),unit_txt,font=fu,fill=C_DARK); cy+=uh+3*S
-            draw.text((bx+(block_w-yw)//2,cy),yoy_txt, font=fy,fill=yc2)
-        elif side=="bottom":
-            ax1,ay1=rx,ry+4*S; ay2=ay1+al
-            draw_dotted_arrow(draw,ax1,ay1,ax1,ay2,C_ARROW,lw_a,hd,da,ga)
-            bx=max(4*S,min(ax1-block_w//2,W-block_w-4*S))
-            cy=min(H-block_h-4*S,ay2+4*S+dot_gap)
-            if logo_r:
-                canvas.paste(logo_r,(bx+(block_w-logo_r.width)//2,cy),logo_r); cy+=lh+2*S
-            else:
-                fb=get_font(16*S); bw2,bh2=tsz(draw,brand,fb)
-                draw.text((bx+(block_w-bw2)//2,cy),brand,font=fb,fill=C_DARK); cy+=bh2+4*S
-            draw.text((bx+(block_w-uw)//2,cy),unit_txt,font=fu,fill=C_DARK); cy+=uh+3*S
-            draw.text((bx+(block_w-yw)//2,cy),yoy_txt, font=fy,fill=yc2)
-        else:
-            ay=ry-th//2
-            if side=="right": ax1=rx+tw//2+6*S; ax2=ax1+al
-            else:             ax1=rx-tw//2-6*S; ax2=ax1-al
-            draw_dotted_arrow(draw,ax1,ay,ax2,ay,C_ARROW,lw_a,hd,da,ga)
-            lty=max(10*S,min(ay-block_h//2,H-block_h-10*S))
-            if side=="right":
-                lx_base=min(ax2+6*S+dot_gap,W-lbw-8*S)
-                base_x=lx_base
-            else:
-                rx_base=max(ax2-6*S-dot_gap,lbw+8*S)
-                base_x=rx_base-block_w
-            cy=lty
-            if logo_r:
-                canvas.paste(logo_r,(max(4*S,base_x+(block_w-logo_r.width)//2),cy),logo_r); cy+=lh+2*S
-            else:
-                fb=get_font(16*S); bw2,bh2=tsz(draw,brand,fb)
-                draw.text((max(4*S,base_x+(block_w-bw2)//2),cy),brand,font=fb,fill=C_DARK); cy+=bh2+4*S
-            draw.text((max(4*S,base_x+(block_w-uw)//2),cy),unit_txt,font=fu,fill=C_DARK); cy+=uh+3*S
-            draw.text((max(4*S,base_x+(block_w-yw)//2),cy),yoy_txt, font=fy,fill=yc2)
+        def draw_yoy_row(left_x, cy_):
+            """Draw '(▲19.85%)' — an opening paren, the triangle (vertically
+            centered against the percentage text's actual rendered bbox),
+            the percentage text, and a closing paren — starting at left_x."""
+            x = left_x
+            draw.text((x, cy_), open_txt, font=fy, fill=yc2)
+            x += ow + 2*S
+            text_x = x + tri_size + 3*S
+            txt_bbox = draw.textbbox((text_x, cy_), yoy_num_txt, font=fy)
+            txt_top, txt_h = txt_bbox[1], txt_bbox[3]-txt_bbox[1]
+            tri_h = tri_size*0.8
+            tri_y = txt_top + (txt_h-tri_h)/2
+            draw_trend_triangle(draw, x, tri_y, tri_size, up, color=yc2)
+            draw.text((text_x, cy_), yoy_num_txt, font=fy, fill=yc2)
+            x = text_x + yw_num + 2*S
+            draw.text((x, cy_), close_txt, font=fy, fill=yc2)
 
-    return canvas.convert("RGB")
+        # ── OFFSET MODE ──────────────────────────────────────────────
+        # Once the user has dragged the logo/label in Edit Mode and saved,
+        # positions[rank] carries explicit logo_ox/oy + label_ox/oy offsets
+        # (in base units, relative to the tractor's road anchor). These are
+        # honored exactly — free placement, not locked to a side — so
+        # edits made in the editor actually show up in the render.
+        has_offsets = pos.get("logo_ox") is not None and pos.get("label_ox") is not None
+        if has_offsets:
+            logo_x=rx+pos["logo_ox"]*S; logo_y=ry+pos["logo_oy"]*S
+            label_x=rx+pos["label_ox"]*S; label_y=ry+pos["label_oy"]*S
+            going_right = pos["logo_ox"]>=0
+            ax1 = rx+tw//2+6*S if going_right else rx-tw//2-6*S
+            ay1 = ry-th//2
+            if logo_r:
+                canvas.paste(logo_r,(int(logo_x),int(logo_y)),logo_r)
+                ax2,ay2 = logo_x, logo_y+lh//2
+            else:
+                fb=get_font(max(6,int(16*S*label_scale))); bw2,bh2=tsz(draw,brand,fb)
+                draw.text((logo_x,logo_y),brand,font=fb,fill=C_DARK)
+                ax2,ay2 = logo_x, logo_y+bh2//2
+            draw_dotted_arrow(draw,ax1,ay1,ax2,ay2,C_ARROW,lw_a,hd,da,ga)
+            draw.text((label_x,label_y),unit_txt,font=fu,fill=C_DARK)
+            draw_yoy_row(label_x, label_y+uh+7*S)
+            continue
+
+        # ── SIDE MODE (legacy default layout, used until edits are saved) ──
+        # Unified for all 8 directions: left, right, top, bottom, and the
+        # 4 diagonal corners (top-left, top-right, bottom-left, bottom-right).
+        dxv,dyv = side_vec(side)
+        # Arrow start: a point on the tractor's silhouette facing the block.
+        ax1 = rx+dxv*(tw//2+6*S) if dxv!=0 else rx
+        if dyv<0:   ay1 = ry-th-4*S
+        elif dyv>0: ay1 = ry+4*S
+        else:       ay1 = ry-th//2
+        # Arrow end: straight for pure sides, 45°-ish for diagonal corners.
+        if dxv!=0 and dyv!=0:
+            ax2 = ax1+int(dxv*al*0.72); ay2 = ay1+int(dyv*al*0.72)
+        elif dxv!=0:
+            ax2 = ax1+dxv*al; ay2 = ay1
+        else:
+            ax2 = ax1; ay2 = ay1+dyv*al
+        draw_dotted_arrow(draw,ax1,ay1,ax2,ay2,C_ARROW,lw_a,hd,da,ga)
+        # Block placed just past the arrow tip, growing away from the tractor.
+        if dxv>0:   bx = ax2+dot_gap
+        elif dxv<0: bx = ax2-dot_gap-block_w
+        else:       bx = ax2-block_w//2
+        if dyv<0:   cy = ay2-dot_gap-block_h
+        elif dyv>0: cy = ay2+dot_gap
+        else:       cy = ay2-block_h//2
+        bx = int(max(4*S, min(bx, W-block_w-4*S)))
+        cy = int(max(4*S, min(cy, H-block_h-4*S)))
+        if logo_r:
+            canvas.paste(logo_r,(bx+(block_w-logo_r.width)//2,cy),logo_r); cy+=lh+2*S
+        else:
+            fb=get_font(16*S); bw2,bh2=tsz(draw,brand,fb)
+            draw.text((bx+(block_w-bw2)//2,cy),brand,font=fb,fill=C_DARK); cy+=bh2+4*S
+        draw.text((bx+(block_w-uw)//2,cy),unit_txt,font=fu,fill=C_DARK); cy+=uh+7*S
+        draw_yoy_row(bx+(block_w-yw)//2, cy)
+
+    final = canvas.convert("RGB")
+    if S != 1:
+        # Downscale the SCALE×-supersampled canvas back to the native
+        # background resolution (e.g. 1080×1350) for a normal-sized export.
+        final = final.resize((W0, H0), Image.LANCZOS)
+    return final
 
 # ══════════════════════════════════════════════════════════════════
 #  INTERACTIVE OVERLAY EDITOR  (HTML5 canvas injected below preview)
@@ -407,6 +497,7 @@ def build_overlay_editor(positions, brands_ranked, preview_w, preview_h,
         flip          = pos.get("flip",  False)
         angle         = pos.get("angle", 0)
         side          = pos.get("side",  "left")
+        label_scale   = pos.get("label_scale") or 1.0
         disp_w        = max(20, int(max_w_logical * RATIO))
 
         tp = brand_tractor_path(brand)
@@ -418,7 +509,7 @@ def build_overlay_editor(positions, brands_ranked, preview_w, preview_h,
             tr_w,tr_h=img.size
 
         lp = brand_logo_path(brand)
-        lh_d = max(8, int(LOGO_H[rank]*RATIO))
+        lh_d = max(8, int((pos.get("logo_h_override") or LOGO_H[rank])*RATIO))
         lo_src=""; lo_w=lh_d; lo_h=lh_d
         if lp and os.path.exists(lp):
             img=Image.open(lp).convert("RGBA")
@@ -429,29 +520,40 @@ def build_overlay_editor(positions, brands_ranked, preview_w, preview_h,
         ax_d = pos["x"]*RATIO; ay_d = pos["y"]*RATIO
 
         lbl_w_d = max(50, int(LABEL_W[rank]*RATIO))
-        lbl_h_d = max(20, int((FONT_UNITS[rank]+FONT_YOY[rank]+4)*RATIO*0.9))
+        lbl_h_d = max(20, int((FONT_UNITS[rank]+FONT_YOY[rank]+4)*RATIO*0.9*label_scale))
 
-        if side=="top":
-            lbl_ox = -lbl_w_d//2; lbl_oy = -(tr_h + int(ARROW_LEN[rank]*RATIO) + lbl_h_d + 4)
-            lo_ox  = lbl_ox;      lo_oy  = lbl_oy - lo_h - 4
-        elif side=="bottom":
-            lo_oy  = int(ARROW_LEN[rank]*RATIO) + 4
-            lbl_oy = lo_oy + lo_h + 4
-            lbl_ox = -lbl_w_d//2; lo_ox = lbl_ox
-        elif side=="right":
-            lbl_ox = int((tr_w//2 + int(ARROW_LEN[rank]*RATIO) + 6))
-            lbl_oy = -tr_h//2 - lbl_h_d//2
-            lo_ox  = lbl_ox; lo_oy = lbl_oy - lo_h - 2
+        has_saved_offsets = pos.get("logo_ox") is not None and pos.get("label_ox") is not None
+        if has_saved_offsets:
+            # Rank was already customized in a previous edit — start the
+            # editor from those exact saved offsets instead of recomputing
+            # a side-based default.
+            lo_ox = int(pos["logo_ox"]*RATIO); lo_oy = int(pos["logo_oy"]*RATIO)
+            lbl_ox = int(pos["label_ox"]*RATIO); lbl_oy = int(pos["label_oy"]*RATIO)
         else:
-            lbl_ox = -(tr_w//2 + int(ARROW_LEN[rank]*RATIO) + 6 + lbl_w_d)
-            lbl_oy = -tr_h//2 - lbl_h_d//2
-            lo_ox  = lbl_ox; lo_oy = lbl_oy - lo_h - 2
+            dxv,dyv = side_vec(side)
+            al_d = int(ARROW_LEN[rank]*RATIO)
+            ax1 = tr_w//2+6 if dxv>0 else (-tr_w//2-6 if dxv<0 else 0)
+            ay1 = -tr_h-4 if dyv<0 else (4 if dyv>0 else -tr_h//2)
+            if dxv!=0 and dyv!=0:
+                ax2 = ax1+int(dxv*al_d*0.72); ay2 = ay1+int(dyv*al_d*0.72)
+            elif dxv!=0:
+                ax2 = ax1+dxv*al_d; ay2 = ay1
+            else:
+                ax2 = ax1; ay2 = ay1+dyv*al_d
+            if dxv>0:   lbl_ox = ax2+6
+            elif dxv<0: lbl_ox = ax2-6-lbl_w_d
+            else:       lbl_ox = ax2-lbl_w_d//2
+            if dyv<0:   lbl_oy = ay2-6-lbl_h_d
+            elif dyv>0: lbl_oy = ay2+6
+            else:       lbl_oy = ay2-lbl_h_d//2
+            lo_ox = lbl_ox; lo_oy = lbl_oy - lo_h - 4
 
         up  = yoy>=0
         entities.append({
             "rank":rank,"brand":brand,
             "angle":angle,"flip":flip,"side":side,
             "max_w_logical":max_w_logical,
+            "label_scale":label_scale,
             "tr":{"src":tr_src,"x":ax_d-tr_w/2,"y":ay_d-tr_h,
                   "w":tr_w,"h":tr_h,"ax":ax_d,"ay":ay_d},
             "lo":{"src":lo_src,"x":ax_d+lo_ox,"y":ay_d+lo_oy,"w":lo_w,"h":lo_h},
@@ -602,8 +704,9 @@ function render(){{
         }}
       }}
       else{{
-        const fs1=Math.max(6,Math.round(FONT_UNITS[ri]*RATIO*0.85));
-        const fs2=Math.max(5,Math.round(FONT_YOY[ri]*RATIO*0.85));
+        const scale=(origEntities[ri].lb.h>0)? obj.h/origEntities[ri].lb.h : 1;
+        const fs1=Math.max(6,Math.round(FONT_UNITS[ri]*RATIO*0.85*scale));
+        const fs2=Math.max(5,Math.round(FONT_YOY[ri]*RATIO*0.85*scale));
         ctx.save();
         ctx.font=`bold ${{fs1}}px Arial`;ctx.fillStyle="rgba(26,26,26,0.9)";
         ctx.fillText(obj.unit,obj.x,obj.y+fs1);
@@ -707,7 +810,7 @@ function showPP(){{
   const e=ents[sel.rank];
   pp.style.display="flex";
   const ang=e.angle||0;
-  const sides=["left","right","top","bottom"];
+  const sides=["left","right","top","bottom","top-left","top-right","bottom-left","bottom-right"];
   const opts=sides.map(s=>`<option ${{e.side===s?"selected":""}} value="${{s}}">${{s}}</option>`).join("");
   pp.innerHTML=`
     <div class="ptitle">#${{sel.rank+1}} ${{e.brand}} — ${{sel.part==="tr"?"tractor":sel.part==="lo"?"logo":"label"}}</div>
@@ -726,7 +829,8 @@ function showPP(){{
       <label>Arrow side</label>
       <select onchange="doSide(this.value)">${{opts}}</select>
     </div>
-    <div class="pg pnote">Drag to move &nbsp;|&nbsp; ↔ handle to resize ${{sel.part==="tr"?"&nbsp;|&nbsp; Angle/flip → re-generate to see":""}}</div>
+    <div class="pg pnote">Drag to move &nbsp;|&nbsp; ↔ handle to resize (works on logo &amp; label too) ${{sel.part==="tr"?"&nbsp;|&nbsp; Angle/flip → re-generate to see":""}}</div>
+    <div class="pg pnote">Position/size are saved as free offsets — "Arrow side" only sets the starting layout before your first Save.</div>
   `;
 }}
 function hidePP(){{pp.style.display="none";pp.innerHTML="";}}
@@ -758,6 +862,7 @@ function markDirty(){{
 document.getElementById("btnSave").addEventListener("click",()=>{{
   const result=ents.map((e,i)=>{{
     const op=origPositions[i];
+    const origLbH = origEntities[i].lb.h || 1;
     return {{
       x:    Math.round(e.tr.ax/RATIO),
       y:    Math.round(e.tr.ay/RATIO),
@@ -767,8 +872,10 @@ document.getElementById("btnSave").addEventListener("click",()=>{{
       max_w_override:e.max_w_logical,
       logo_ox: Math.round((e.lo.x-e.tr.ax)/RATIO),
       logo_oy: Math.round((e.lo.y-e.tr.ay)/RATIO),
+      logo_h_override: Math.round(e.lo.h/RATIO),
       label_ox: Math.round((e.lb.x-e.tr.ax)/RATIO),
       label_oy: Math.round((e.lb.y-e.tr.ay)/RATIO),
+      label_scale: +(e.lb.h/origLbH).toFixed(3),
     }};
   }});
   window.parent.postMessage({{type:"tractor_save",payload:JSON.stringify(result)}},"*");
@@ -986,8 +1093,12 @@ window.addEventListener("message",function(ev){
                                                    old.get("max_w_override",TRACTOR_MAX_W[i]))),
                                     "logo_ox":  int(p.get("logo_ox",  old.get("logo_ox",0))),
                                     "logo_oy":  int(p.get("logo_oy",  old.get("logo_oy",0))),
+                                    "logo_h_override": int(p.get("logo_h_override",
+                                                   old.get("logo_h_override") or LOGO_H[i])),
                                     "label_ox": int(p.get("label_ox", old.get("label_ox",0))),
                                     "label_oy": int(p.get("label_oy", old.get("label_oy",0))),
+                                    "label_scale": float(p.get("label_scale",
+                                                   old.get("label_scale") or 1.0)),
                                 }
                             save_positions(st.session_state.positions)
                             st.session_state.save_msg="✅ Layout saved to positions.json — click Generate to re-render."
@@ -999,4 +1110,3 @@ window.addEventListener("message",function(ev){
                         st.error(f"❌ {e}")
 else:
     st.info("👆 Click **Generate Infographic** to create the preview.")
-    #Changed
