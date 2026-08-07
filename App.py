@@ -20,7 +20,7 @@ import os, math, io, json, copy, base64, platform
 # ══════════════════════════════════════════════════════════════════
 #  PATHS
 # ══════════════════════════════════════════════════════════════════
-BASE_DIR       = r"D:\Python\Projects\Graphic Generator"
+BASE_DIR       = os.path.dirname(os.path.abspath(__file__))
 ASSETS_DIR     = os.path.join(BASE_DIR, "assets")
 LOGOS_DIR      = os.path.join(BASE_DIR, "assets", "logos")
 TRACTORS_DIR   = os.path.join(BASE_DIR, "assets", "tractors")
